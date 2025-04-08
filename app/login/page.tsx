@@ -59,6 +59,9 @@ export default function LoginPageComponent() {
       sessionStorage.setItem("auth_token", token);
       sessionStorage.setItem("auth_user", JSON.stringify(data.user));
       sessionStorage.setItem("auth_user_id", data.user.id_usuario);
+      sessionStorage.setItem("auth_user_role", data.user.id_rol);
+      sessionStorage.setItem("auth_user_name", data.user.nombres);
+      sessionStorage.setItem("auth_user_email", data.user.email);
       setAuthToken(token);
 
       toast({
@@ -67,7 +70,13 @@ export default function LoginPageComponent() {
         variant: "default",
       });
 
-      router.replace("/dashboard");
+      if(Number(sessionStorage.getItem("auth_user_role")) === 1){
+        router.replace("/admin");
+      }
+      else{
+        router.replace("/dashboard");
+      }
+      
     } catch (error) {
       console.error("Error en la solicitud:", error);
       toast({

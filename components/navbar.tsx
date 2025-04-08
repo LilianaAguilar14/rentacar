@@ -76,6 +76,10 @@ export default function Navbar() {
                   <LayoutDashboard className="h-4 w-4" />
                   <span>Dashboard</span>
                 </Link>
+                <Link href="/suscripciones" className="text-gray-600 hover:text-blue-500 flex items-center gap-1">
+                  <Category className="h-4 w-4" />
+                  <span>Suscripciones</span>
+                </Link>
                 <Link href="/plans" className="text-gray-600 hover:text-blue-500 flex items-center gap-1">
                   <CreditCard className="h-4 w-4" />
                   <span>Planes</span>
@@ -161,12 +165,12 @@ export default function Navbar() {
                     <span>Dashboard</span>
                   </Link>
                   <Link
-                    href="/categories"
+                    href="/suscripciones"
                     className="text-gray-600 hover:text-blue-500 flex items-center gap-2"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     <Category className="h-5 w-5" />
-                    <span>Categorías</span>
+                    <span>Suscrpciones</span>
                   </Link>
                   <Link
                     href="/plans"
