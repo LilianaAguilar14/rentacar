@@ -12,10 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Car, CreditCard, Calendar, Clock } from "lucide-react";
 
-/**
- * Función auxiliar para calcular el próximo pago en un plan mensual.
- * Suma un mes a la fecha actual y devuelve la fecha formateada en DD/MM/YYYY.
- */
 const computeNextPayment = () => {
   const now = new Date();
   now.setMonth(now.getMonth() + 1);
@@ -29,20 +25,26 @@ const computeNextPayment = () => {
 export default function DashboardPage() {
   const [userName, setUserName] = useState("Usuario");
 
-  // Lista completa de reservaciones que nos devuelva el endpoint
+  // Estados para datos obtenidos desde la API:
   const [allReservations, setAllReservations] = useState([]);
-  // Lista completa de planes (array) que nos devuelva el endpoint
   const [allPlans, setAllPlans] = useState([]);
-
-  // De la lista de planes, aquí guardaremos el plan "activo" que desees mostrar
   const [userPlan, setUserPlan] = useState(null);
 
-  // Filtramos las reservaciones en "activas/pendientes" y "completadas"
+  // Filtrado de reservaciones:
   const [activeReservations, setActiveReservations] = useState([]);
   const [completedReservations, setCompletedReservations] = useState([]);
 
+  // Estado para el token
+  const [token, setToken] = useState(null);
+
+  // Al montar, obtenemos el token del sessionStorage
   useEffect(() => {
-    const token = sessionStorage.getItem("auth_token");
+    const storedToken = sessionStorage.getItem("auth_token");
+    setToken(storedToken);
+  }, []);
+
+  // Cada vez que cambie el token se obtienen los datos del usuario, reservas y planes
+  useEffect(() => {
     if (!token) return;
 
     async function fetchData() {
@@ -55,14 +57,8 @@ export default function DashboardPage() {
             Authorization: `Bearer ${token}`,
           },
         });
-
         if (userResponse.ok) {
-          // Dado que tu captura muestra un array, asumimos que /usuarios podría devolver más de un usuario
-          // Ejemplo: [{ id_usuario: 1, nombres: "Carlos López", ... }, { ... }]
-          // Si deseas solo el usuario logueado, normalmente tu backend debería filtrar por token.
-          // Para fines ilustrativos, solo tomamos el primer elemento.
           const users = await userResponse.json();
-          // Suponiendo que el backend retorna un array, y tu usuario logueado es [0]
           if (Array.isArray(users) && users.length > 0) {
             setUserName(users[0].nombres);
           }
@@ -71,21 +67,17 @@ export default function DashboardPage() {
         }
 
         // 2. Obtener todas las reservaciones
-        const reservationsResponse = await fetch(
-          "http://localhost:8000/api/reservaciones",
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const reservationsResponse = await fetch("http://localhost:8000/api/reservaciones", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
         if (reservationsResponse.ok) {
           const reservationsData = await reservationsResponse.json();
           setAllReservations(reservationsData);
 
-          // Filtramos de una vez las activas/pendientes y las completadas
           const active = reservationsData.filter(
             (res) => res.status === "active" || res.status === "pending"
           );
@@ -95,10 +87,7 @@ export default function DashboardPage() {
           setActiveReservations(active);
           setCompletedReservations(completed);
         } else {
-          console.error(
-            "Error al obtener reservaciones:",
-            reservationsResponse.status
-          );
+          console.error("Error al obtener reservaciones:", reservationsResponse.status);
         }
 
         // 3. Obtener todos los planes
@@ -113,18 +102,8 @@ export default function DashboardPage() {
           const plansData = await plansResponse.json();
           setAllPlans(plansData);
 
-          // Suponiendo que tu usuario tiene un plan activo con "id_plan" = 1 (por ejemplo),
-          // o que deseas simplemente mostrar el primer plan. Ajusta la lógica según tu app.
-          // Por ejemplo, si tu "reservaciones" o "suscripción" indica "id_plan: 2",
-          // podrías buscar ese plan en 'plansData'.
-          //
-          // Ejemplo: encontrar plan con "id_plan" = 1
-          // const userHasPlanId = 1;
-          // const foundPlan = plansData.find((p) => p.id_plan === userHasPlanId);
-
-          // Para un ejemplo simple, tomaremos el primer plan (si existe):
+          // Ajusta la lógica para obtener el plan activo del usuario
           if (Array.isArray(plansData) && plansData.length > 0) {
-            // Ajusta la lógica para obtener el plan correcto
             setUserPlan(plansData[0]);
           }
         } else {
@@ -136,7 +115,7 @@ export default function DashboardPage() {
     }
 
     fetchData();
-  }, []);
+  }, [token]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -174,9 +153,7 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-gray-500">
                     Reservaciones Activas y Pendientes
                   </p>
-                  <h3 className="text-2xl font-bold mt-1">
-                    {activeReservations.length}
-                  </h3>
+                  <h3 className="text-2xl font-bold mt-1">{activeReservations.length}</h3>
                 </div>
                 <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
                   <Car className="h-6 w-6 text-blue-500" />
@@ -195,9 +172,7 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-gray-500">
                     Reservaciones Completadas
                   </p>
-                  <h3 className="text-2xl font-bold mt-1">
-                    {completedReservations.length}
-                  </h3>
+                  <h3 className="text-2xl font-bold mt-1">{completedReservations.length}</h3>
                 </div>
                 <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
                   <Clock className="h-6 w-6 text-green-500" />
@@ -215,19 +190,13 @@ export default function DashboardPage() {
                 <p className="text-sm font-medium text-gray-500">Plan Activo</p>
                 {userPlan ? (
                   <>
-                    <h3 className="text-xl font-bold mt-1">
-                      {userPlan.nombre_plan}
-                    </h3>
+                    <h3 className="text-xl font-bold mt-1">{userPlan.nombre_plan}</h3>
                     <p className="text-sm text-gray-600 mt-2">
-                      {/* Si tu JSON de planes no trae la fecha de pago,
-                          usamos computeNextPayment(). Ajusta según tu lógica. */}
                       Próximo Pago: {computeNextPayment()}
                     </p>
                   </>
                 ) : (
-                  <h3 className="text-xl font-bold mt-1">
-                    No tienes un plan activo
-                  </h3>
+                  <h3 className="text-xl font-bold mt-1">No tienes un plan activo</h3>
                 )}
               </div>
               <div className="mt-4 flex justify-end">
@@ -244,9 +213,7 @@ export default function DashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Reservaciones Activas</CardTitle>
-            <CardDescription>
-              Reservaciones de vehículos actuales
-            </CardDescription>
+            <CardDescription>Reservaciones de vehículos actuales</CardDescription>
           </CardHeader>
           <CardContent>
             {activeReservations.length > 0 ? (
@@ -256,17 +223,9 @@ export default function DashboardPage() {
                     key={reservation.id_reservacion}
                     className="flex items-center gap-4 p-4 border rounded-lg"
                   >
-                    {/* Ajusta las propiedades según tu JSON.
-                        Supongamos que el vehiculo se anida en "reservation.vehiculo"
-                        con "nombre_vehiculo", etc. */}
                     <img
-                      src={
-                        reservation.vehiculo?.imagen ||
-                        "/placeholder.svg"
-                      }
-                      alt={
-                        reservation.vehiculo?.nombre_vehiculo || "Vehículo"
-                      }
+                      src={reservation.vehiculo?.imagen || "/placeholder.svg"}
+                      alt={reservation.vehiculo?.nombre_vehiculo || "Vehículo"}
                       className="w-20 h-16 object-cover rounded"
                     />
                     <div className="flex-grow">
@@ -302,9 +261,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Acciones Rápidas</CardTitle>
-            <CardDescription>
-              Accede rápidamente a las funciones principales
-            </CardDescription>
+            <CardDescription>Accede rápidamente a las funciones principales</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
