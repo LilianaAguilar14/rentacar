@@ -22,12 +22,10 @@ export default function LoginPageComponent() {
   const redirectPath = searchParams.get("redirect") || "/dashboard";
   const { toast } = useToast();
 
-  // Accede a las cookies en el cliente y actualiza el estado
+  // Al montar el componente, lee el token desde sessionStorage
   useEffect(() => {
-    const cookies = document.cookie.split("; ");
-    const tokenCookie = cookies.find((row) => row.startsWith("auth_token="));
-    if (tokenCookie) {
-      const token = tokenCookie.split("=")[1];
+    const token = sessionStorage.getItem("auth_token");
+    if (token) {
       setAuthToken(token);
     }
   }, []);
@@ -60,8 +58,9 @@ export default function LoginPageComponent() {
       const data = await response.json();
       const token = data.token;
 
-      // Guarda el token en la cookie y actualiza el estado
-      document.cookie = `auth_token=${token}; path=/; max-age=86400`;
+      // Guarda el token y los datos del usuario en sessionStorage
+      sessionStorage.setItem("auth_token", token);
+      sessionStorage.setItem("auth_user", JSON.stringify(data.user));
       setAuthToken(token);
 
       toast({
