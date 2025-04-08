@@ -55,7 +55,8 @@ export default function Navbar() {
     sessionStorage.removeItem("auth_user");
     setIsAuthenticated(false);
     setUserRole("cliente");
-    router.push("/login");
+    // Redirigir a la página de inicio
+    router.push("/");
   };
 
   return (
