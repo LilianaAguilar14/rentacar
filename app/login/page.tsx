@@ -58,6 +58,7 @@ export default function LoginPageComponent() {
       // Guarda el token y los datos del usuario en sessionStorage
       sessionStorage.setItem("auth_token", token);
       sessionStorage.setItem("auth_user", JSON.stringify(data.user));
+      sessionStorage.setItem("auth_user_id", data.user.id_usuario);
       setAuthToken(token);
 
       toast({
