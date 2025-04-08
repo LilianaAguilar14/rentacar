@@ -134,11 +134,6 @@ export default function DashboardPage() {
               Rentar un Vehículo
             </Button>
           </Link>
-          <Link href="/admin">
-            <Button variant="outline" className="border-blue-500 text-blue-500 hover:bg-blue-50">
-              Panel de Administración
-            </Button>
-          </Link>
         </div>
       </div>
 
