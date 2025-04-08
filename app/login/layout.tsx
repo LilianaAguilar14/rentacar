@@ -9,8 +9,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  )
+    <>
+
+      <main className="dashboard-wrapper">
+        {children}
+      </main>
+    </>
+  );
 }

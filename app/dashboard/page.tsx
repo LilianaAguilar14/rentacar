@@ -6,46 +6,49 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import { Car, CreditCard, Calendar, Clock } from "lucide-react";
 
-const userStats = {
-  activeReservations: 2,
-  completedReservations: 5,
-  activePlan: "Plan Estándar",
-  nextPayment: "15/05/2025",
+/**
+ * Función auxiliar para calcular el próximo pago en un plan mensual.
+ * Suma un mes a la fecha actual y devuelve la fecha formateada en DD/MM/YYYY.
+ */
+const computeNextPayment = () => {
+  const now = new Date();
+  now.setMonth(now.getMonth() + 1);
+  return now.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 };
-
-const activeReservations = [
-  {
-    id: 1,
-    vehiculo: "Toyota Corolla (2020)",
-    fechaInicio: "10/04/2025",
-    fechaFin: "20/04/2025",
-    imagen: "/placeholder.svg?height=100&width=150",
-  },
-  {
-    id: 2,
-    vehiculo: "Ford Mustang (2022)",
-    fechaInicio: "15/05/2025",
-    fechaFin: "25/05/2025",
-    imagen: "/placeholder.svg?height=100&width=150",
-  },
-];
 
 export default function DashboardPage() {
   const [userName, setUserName] = useState("Usuario");
+
+  // Lista completa de reservaciones que nos devuelva el endpoint
+  const [allReservations, setAllReservations] = useState([]);
+  // Lista completa de planes (array) que nos devuelva el endpoint
+  const [allPlans, setAllPlans] = useState([]);
+
+  // De la lista de planes, aquí guardaremos el plan "activo" que desees mostrar
+  const [userPlan, setUserPlan] = useState(null);
+
+  // Filtramos las reservaciones en "activas/pendientes" y "completadas"
+  const [activeReservations, setActiveReservations] = useState([]);
+  const [completedReservations, setCompletedReservations] = useState([]);
 
   useEffect(() => {
     const token = sessionStorage.getItem("auth_token");
     if (!token) return;
 
-    async function fetchUser() {
+    async function fetchData() {
       try {
-        const response = await fetch("http://localhost:8000/api/userarios", {
+        // 1. Obtener información del usuario
+        const userResponse = await fetch("http://localhost:8000/api/usuarios", {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -53,20 +56,86 @@ export default function DashboardPage() {
           },
         });
 
-        if (!response.ok) {
-          console.error("Error al obtener el usuario:", response.status);
-          return;
+        if (userResponse.ok) {
+          // Dado que tu captura muestra un array, asumimos que /usuarios podría devolver más de un usuario
+          // Ejemplo: [{ id_usuario: 1, nombres: "Carlos López", ... }, { ... }]
+          // Si deseas solo el usuario logueado, normalmente tu backend debería filtrar por token.
+          // Para fines ilustrativos, solo tomamos el primer elemento.
+          const users = await userResponse.json();
+          // Suponiendo que el backend retorna un array, y tu usuario logueado es [0]
+          if (Array.isArray(users) && users.length > 0) {
+            setUserName(users[0].nombres);
+          }
+        } else {
+          console.error("Error al obtener el usuario:", userResponse.status);
         }
 
-        const data = await response.json();
-        // Extraemos solo el nombre usando la propiedad "nombres"
-        setUserName(data.nombres);
+        // 2. Obtener todas las reservaciones
+        const reservationsResponse = await fetch(
+          "http://localhost:8000/api/reservaciones",
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        if (reservationsResponse.ok) {
+          const reservationsData = await reservationsResponse.json();
+          setAllReservations(reservationsData);
+
+          // Filtramos de una vez las activas/pendientes y las completadas
+          const active = reservationsData.filter(
+            (res) => res.status === "active" || res.status === "pending"
+          );
+          const completed = reservationsData.filter(
+            (res) => res.status === "completed"
+          );
+          setActiveReservations(active);
+          setCompletedReservations(completed);
+        } else {
+          console.error(
+            "Error al obtener reservaciones:",
+            reservationsResponse.status
+          );
+        }
+
+        // 3. Obtener todos los planes
+        const plansResponse = await fetch("http://localhost:8000/api/planes", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (plansResponse.ok) {
+          const plansData = await plansResponse.json();
+          setAllPlans(plansData);
+
+          // Suponiendo que tu usuario tiene un plan activo con "id_plan" = 1 (por ejemplo),
+          // o que deseas simplemente mostrar el primer plan. Ajusta la lógica según tu app.
+          // Por ejemplo, si tu "reservaciones" o "suscripción" indica "id_plan: 2",
+          // podrías buscar ese plan en 'plansData'.
+          //
+          // Ejemplo: encontrar plan con "id_plan" = 1
+          // const userHasPlanId = 1;
+          // const foundPlan = plansData.find((p) => p.id_plan === userHasPlanId);
+
+          // Para un ejemplo simple, tomaremos el primer plan (si existe):
+          if (Array.isArray(plansData) && plansData.length > 0) {
+            // Ajusta la lógica para obtener el plan correcto
+            setUserPlan(plansData[0]);
+          }
+        } else {
+          console.error("Error al obtener planes:", plansResponse.status);
+        }
       } catch (error) {
-        console.error("Error en la solicitud GET al usuario:", error);
+        console.error("Error en la solicitud:", error);
       }
     }
 
-    fetchUser();
+    fetchData();
   }, []);
 
   return (
@@ -87,97 +156,96 @@ export default function DashboardPage() {
             </Button>
           </Link>
           <Link href="/admin">
-            <Button
-              variant="outline"
-              className="border-blue-500 text-blue-500 hover:bg-blue-50"
-            >
+            <Button variant="outline" className="border-blue-500 text-blue-500 hover:bg-blue-50">
               Panel de Administración
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* Tarjetas de Estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">
-                  Reservaciones Activas
-                </p>
-                <h3 className="text-2xl font-bold mt-1">
-                  {userStats.activeReservations}
-                </h3>
+      {/* Tarjetas de Estadísticas Simplificadas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {/* Card: Reservaciones Activas y Pendientes */}
+        <Link href="/reservations?status=active" className="cursor-pointer">
+          <Card className="hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">
+                    Reservaciones Activas y Pendientes
+                  </p>
+                  <h3 className="text-2xl font-bold mt-1">
+                    {activeReservations.length}
+                  </h3>
+                </div>
+                <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Car className="h-6 w-6 text-blue-500" />
+                </div>
               </div>
-              <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <Car className="h-6 w-6 text-blue-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">
-                  Reservaciones Completadas
-                </p>
-                <h3 className="text-2xl font-bold mt-1">
-                  {userStats.completedReservations}
-                </h3>
+        {/* Card: Reservaciones Completadas */}
+        <Link href="/reservations?status=completed" className="cursor-pointer">
+          <Card className="hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">
+                    Reservaciones Completadas
+                  </p>
+                  <h3 className="text-2xl font-bold mt-1">
+                    {completedReservations.length}
+                  </h3>
+                </div>
+                <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <Clock className="h-6 w-6 text-green-500" />
+                </div>
               </div>
-              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
-                <Clock className="h-6 w-6 text-green-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+        {/* Card: Plan Activo y Próximo Pago */}
+        <Link href="/plans" className="cursor-pointer">
+          <Card className="hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
               <div>
                 <p className="text-sm font-medium text-gray-500">Plan Activo</p>
-                <h3 className="text-xl font-bold mt-1">
-                  {userStats.activePlan}
-                </h3>
+                {userPlan ? (
+                  <>
+                    <h3 className="text-xl font-bold mt-1">
+                      {userPlan.nombre_plan}
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-2">
+                      {/* Si tu JSON de planes no trae la fecha de pago,
+                          usamos computeNextPayment(). Ajusta según tu lógica. */}
+                      Próximo Pago: {computeNextPayment()}
+                    </p>
+                  </>
+                ) : (
+                  <h3 className="text-xl font-bold mt-1">
+                    No tienes un plan activo
+                  </h3>
+                )}
               </div>
-              <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <CreditCard className="h-6 w-6 text-purple-500" />
+              <div className="mt-4 flex justify-end">
+                <CreditCard className="h-8 w-8 text-purple-500" />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">
-                  Próximo Pago
-                </p>
-                <h3 className="text-xl font-bold mt-1">
-                  {userStats.nextPayment}
-                </h3>
-              </div>
-              <div className="h-12 w-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-yellow-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
-      {/* Reservaciones Activas y Acciones Rápidas */}
+      {/* Sección de Reservaciones Detalladas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Reservaciones Activas */}
+        {/* Listado de Reservaciones Activas */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Reservaciones Activas</CardTitle>
             <CardDescription>
-              Tus reservaciones de vehículos actuales
+              Reservaciones de vehículos actuales
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -185,23 +253,31 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 {activeReservations.map((reservation) => (
                   <div
-                    key={reservation.id}
+                    key={reservation.id_reservacion}
                     className="flex items-center gap-4 p-4 border rounded-lg"
                   >
+                    {/* Ajusta las propiedades según tu JSON.
+                        Supongamos que el vehiculo se anida en "reservation.vehiculo"
+                        con "nombre_vehiculo", etc. */}
                     <img
-                      src={reservation.imagen || "/placeholder.svg"}
-                      alt={reservation.vehiculo}
+                      src={
+                        reservation.vehiculo?.imagen ||
+                        "/placeholder.svg"
+                      }
+                      alt={
+                        reservation.vehiculo?.nombre_vehiculo || "Vehículo"
+                      }
                       className="w-20 h-16 object-cover rounded"
                     />
                     <div className="flex-grow">
                       <h4 className="font-semibold">
-                        {reservation.vehiculo}
+                        {reservation.vehiculo?.nombre_vehiculo || "Sin nombre"}
                       </h4>
                       <p className="text-sm text-gray-500">
-                        {reservation.fechaInicio} - {reservation.fechaFin}
+                        {reservation.fecha_desde} - {reservation.fecha_hasta}
                       </p>
                     </div>
-                    <Link href={`/reservations/${reservation.id}`}>
+                    <Link href={`/reservations/${reservation.id_reservacion}`}>
                       <Button variant="outline" size="sm">
                         Ver Detalles
                       </Button>
@@ -211,9 +287,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-500">
-                  No tienes reservaciones activas
-                </p>
+                <p className="text-gray-500">No tienes reservaciones activas</p>
                 <Link href="/vehicles">
                   <Button className="mt-4 bg-blue-500 hover:bg-blue-600">
                     Explorar Vehículos

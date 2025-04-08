@@ -47,7 +47,7 @@ export default function VehiclesPage() {
                   <CardTitle>
                     {vehicle.marca} {vehicle.modelo}
                   </CardTitle>
-                  {/* Muestra un Badge según el estado. Se puede ajustar según la lógica requerida */}
+                  {/* Muestra un Badge según el estado */}
                   <Badge className={vehicle.estado.descripcion === "Activo" ? "bg-green-500" : "bg-yellow-500"}>
                     {vehicle.estado.descripcion}
                   </Badge>
@@ -60,7 +60,12 @@ export default function VehiclesPage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Link href={`/vehicles/${vehicle.id_vehiculo}`} className="w-full">
+                {/* Si el vehículo está Activo, redirige a la página de Planes para contratar un plan;
+                    de lo contrario, lleva a la página de detalles del vehículo */}
+                <Link
+                  href={vehicle.estado.descripcion === "Activo" ? "/plans" : `/vehicles/${vehicle.id_vehiculo}`}
+                  className="w-full"
+                >
                   <Button className="w-full bg-blue-500 hover:bg-blue-600">
                     {vehicle.estado.descripcion === "Activo" ? "Reservar Ahora" : "Ver Detalles"}
                   </Button>
