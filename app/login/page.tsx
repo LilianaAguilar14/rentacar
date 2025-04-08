@@ -3,7 +3,7 @@
 import type React from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter} from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,13 +16,10 @@ export default function LoginPageComponent() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [authToken, setAuthToken] = useState(""); // Estado para el token
-
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/dashboard";
   const { toast } = useToast();
 
-  // Al montar el componente, lee el token desde sessionStorage
+
   useEffect(() => {
     const token = sessionStorage.getItem("auth_token");
     if (token) {
@@ -69,7 +66,7 @@ export default function LoginPageComponent() {
         variant: "default",
       });
 
-      router.push(redirectPath);
+      router.replace("/dashboard");
     } catch (error) {
       console.error("Error en la solicitud:", error);
       toast({
@@ -95,7 +92,7 @@ export default function LoginPageComponent() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             <div className="space-y-2">
               <Label htmlFor="email">Correo Electrónico</Label>
               <Input

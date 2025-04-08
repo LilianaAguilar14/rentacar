@@ -1,5 +1,5 @@
+"use client"
 import type React from "react"
-import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -7,11 +7,6 @@ import Navbar from "@/components/navbar"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "Sistema de Renta de Carros",
-  description: "Plataforma para rentar vehículos con planes de suscripción",
-    generator: 'v0.dev'
-}
 
 export default function RootLayout({
   children,
@@ -19,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <Navbar />
@@ -27,7 +22,7 @@ export default function RootLayout({
           <footer className="bg-gray-100 py-6 mt-auto">
             <div className="container mx-auto px-4 md:px-6">
               <p className="text-center text-gray-600">
-                © {new Date().getFullYear()} Sistema de Renta de Carros. Todos los derechos reservados.
+                © 2025 Sistema de Renta de Carros. Todos los derechos reservados.
               </p>
             </div>
           </footer>

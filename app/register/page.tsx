@@ -75,7 +75,7 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
-      const response = await fetch("http://localhost:8000/api/usuarios", {
+      const response = await fetch("http://localhost:8000/api/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -87,7 +87,7 @@ export default function RegisterPage() {
           dui: formData.dui,
           id_rol: Number(formData.id_rol),
           // Si deseas enviar la contraseña, configura la API para manejarla y hashearla
-          // password: formData.password,
+          password: formData.password,
         }),
       })
 
@@ -135,7 +135,7 @@ export default function RegisterPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             <div className="space-y-2">
               <Label htmlFor="nombres">Nombre Completo</Label>
               <Input
