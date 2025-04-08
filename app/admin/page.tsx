@@ -12,7 +12,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileText,
-  Settings,
   Car,
   ShoppingCart,
   CreditCard,
@@ -20,14 +19,44 @@ import {
 } from "lucide-react";
 
 // Importación de modales
-import AgregarVehi from "@/components/AgregarVehi";       // Modal para agregar vehículo
-import AgregarCatego from "@/components/AgregarCatego";     // Modal para agregar categoría
-import AgregarPlan from "@/components/AgregarPlan";         // Modal para agregar plan
-import EditarVehi from "@/components/EditarVehi";           // Modal para editar vehículo
-import EditarCatego from "@/components/EditarCatego";         // Modal para editar categoría
-import EditarPlan from "@/components/EditarPlan";           // Modal para editar plan
+import AgregarVehi from "@/components/AgregarVehi";
+import AgregarCatego from "@/components/AgregarCatego";
+import AgregarPlan from "@/components/AgregarPlan";
+import EditarVehi from "@/components/EditarVehi";
+import EditarCatego from "@/components/EditarCatego";
+import EditarPlan from "@/components/EditarPlan";
 
-// INTERFAZ DE VEHÍCULO: se usan únicamente los campos originales, usando id_vehiculo como identificador.
+// IMPORTACIÓN DEL CHART
+import { Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+// *** IMPORTANTE ***
+// 1. Asegúrate de instalar: npm install jspdf jspdf-autotable
+// 2. Usa la importación recomendada:
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+
+// Registro de componentes en ChartJS
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+// INTERFACES
 interface Vehicle {
   id_vehiculo: number;
   marca: string;
@@ -44,19 +73,17 @@ interface Vehicle {
   };
 }
 
-// INTERFAZ DE CATEGORÍA: se usan únicamente los campos originales.
 interface Category {
   id_categoria: number;
   nombre_categoria: string;
   descripcion: string;
 }
 
-// INTERFAZ DE PLAN: basada en el JSON obtenido.
 interface Plan {
   id_plan: number;
   nombre_plan: string;
   descripcion: string;
-  precio_mensual: string; // se recibe como string
+  precio_mensual: string;
   limite_km: number;
   id_categoria: number;
   categoria?: {
@@ -66,7 +93,6 @@ interface Plan {
   };
 }
 
-// INTERFAZ DE USUARIO: según el ejemplo proporcionado.
 interface User {
   id_usuario: number;
   nombres: string;
@@ -81,46 +107,142 @@ interface User {
   };
 }
 
-// INTERFAZ DE RESERVACIÓN: se extraen únicamente los campos solicitados.
-// Se asume que la reservación trae también objetos anidados: "suscripcion" y "vehiculo"
 interface Reservation {
   id_reservacion: number;
   fecha_desde: string;
   fecha_hasta: string;
   fecha_registro: string;
   id_suscripcion: number;
-  // del objeto suscripcion:
   suscripcion: {
+    id_suscripcion: number;
     fecha_inicio: string;
     fecha_fin: string;
     fecha_pago: string;
+    id_usuario: number;
+    id_plan: number;
+    id_estado: number;
+    created_at: string | null;
+    updated_at: string | null;
   };
-  // del objeto vehiculo:
   vehiculo: {
+    id_vehiculo: number;
     marca: string;
     modelo: string;
     anio: string;
+    fecha_registro: string;
     placa: string;
   };
 }
 
+// Interfaz para Suscripción
+interface Suscripcion {
+  id_suscripcion: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+  fecha_pago: string;
+  id_usuario: number;
+  id_plan: number;
+  id_estado: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// === Funciones de ayuda para gráficos y cálculos ===
+
+function getDailyCounts(
+  data: any[],
+  dateField: string,
+  days: number = 7
+): { labels: string[]; counts: number[] } {
+  const labels: string[] = [];
+  const counts: { [key: string]: number } = {};
+  const today = new Date();
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    labels.push(label);
+    counts[label] = 0;
+  }
+
+  data.forEach((item) => {
+    const d = new Date(item[dateField]);
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (label in counts) {
+      counts[label]++;
+    }
+  });
+
+  return { labels, counts: labels.map((lab) => counts[lab]) };
+}
+
+function getPlansDailyCounts(
+  plans: Plan[],
+  days: number = 7
+): { labels: string[]; counts: number[] } {
+  const labels: string[] = [];
+  const counts: number[] = [];
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    labels.push(label);
+    counts.push(i === 0 ? plans.length : 0);
+  }
+  return { labels, counts };
+}
+
+/**
+ * Suma diaria de ganancias a partir de la fecha_pago de la suscripción
+ */
+function getDailyRevenue(
+  subs: Suscripcion[],
+  dateField: string,
+  plans: Plan[],
+  days: number = 7
+): { labels: string[]; revenue: number[] } {
+  const labels: string[] = [];
+  const revenueMap: { [key: string]: number } = {};
+  const today = new Date();
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    labels.push(label);
+    revenueMap[label] = 0;
+  }
+
+  subs.forEach((sub) => {
+    const d = new Date(sub[dateField]);
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const plan = plans.find((p) => p.id_plan === sub.id_plan);
+    const amount = plan ? parseFloat(plan.precio_mensual) : 0;
+    if (label in revenueMap) {
+      revenueMap[label] += amount;
+    }
+  });
+
+  return { labels, revenue: labels.map((lab) => revenueMap[lab]) };
+}
+
 export default function AdminDashboard() {
-  // Estados para modales de vehículo
+  // === Estados de modales ===
   const [modalOpen, setModalOpen] = useState(false);
   const [editarVehiOpen, setEditarVehiOpen] = useState(false);
   const [vehicleToEdit, setVehicleToEdit] = useState<Vehicle | null>(null);
 
-  // Estados para modales de categoría
   const [modalCategoOpen, setModalCategoOpen] = useState(false);
   const [editarCategoOpen, setEditarCategoOpen] = useState(false);
   const [categoriaToEdit, setCategoriaToEdit] = useState<Category | null>(null);
 
-  // Estados para modales de plan
   const [modalPlanOpen, setModalPlanOpen] = useState(false);
   const [planToEdit, setPlanToEdit] = useState<Plan | null>(null);
   const [editarPlanOpen, setEditarPlanOpen] = useState(false);
 
-  // Estados para almacenar datos
+  // === Estados para datos ===
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
   const [fetchVehiclesError, setFetchVehiclesError] = useState("");
@@ -141,7 +263,11 @@ export default function AdminDashboard() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [fetchUsersError, setFetchUsersError] = useState("");
 
-  // Obtención de vehículos
+  const [suscripciones, setSuscripciones] = useState<Suscripcion[]>([]);
+  const [loadingSuscripciones, setLoadingSuscripciones] = useState(false);
+  const [fetchSuscripcionesError, setFetchSuscripcionesError] = useState("");
+
+  // === Efectos para cargar datos al montar el componente ===
   useEffect(() => {
     const fetchVehicles = async () => {
       setLoadingVehicles(true);
@@ -152,7 +278,6 @@ export default function AdminDashboard() {
         const data = await res.json();
         setVehicles(data);
       } catch (error) {
-        console.error("Error fetching vehicles:", error);
         setFetchVehiclesError("No se pudieron obtener los vehículos. Intenta de nuevo.");
       } finally {
         setLoadingVehicles(false);
@@ -161,7 +286,6 @@ export default function AdminDashboard() {
     fetchVehicles();
   }, []);
 
-  // Obtención de categorías
   useEffect(() => {
     const fetchCategorias = async () => {
       setLoadingCatego(true);
@@ -172,7 +296,6 @@ export default function AdminDashboard() {
         const data = await res.json();
         setCategorias(data);
       } catch (error) {
-        console.error("Error fetching categorías:", error);
         setFetchCategoError("No se pudieron obtener las categorías. Intenta de nuevo.");
       } finally {
         setLoadingCatego(false);
@@ -181,7 +304,6 @@ export default function AdminDashboard() {
     fetchCategorias();
   }, []);
 
-  // Obtención de planes
   useEffect(() => {
     const fetchPlans = async () => {
       setLoadingPlans(true);
@@ -192,7 +314,6 @@ export default function AdminDashboard() {
         const data = await res.json();
         setPlans(data);
       } catch (error) {
-        console.error("Error fetching plans:", error);
         setFetchPlansError("No se pudieron obtener los planes. Intenta de nuevo.");
       } finally {
         setLoadingPlans(false);
@@ -201,7 +322,6 @@ export default function AdminDashboard() {
     fetchPlans();
   }, []);
 
-  // Obtención de reservaciones (solo GET)
   useEffect(() => {
     const fetchReservations = async () => {
       setLoadingReservations(true);
@@ -212,7 +332,6 @@ export default function AdminDashboard() {
         const data = await res.json();
         setReservations(data);
       } catch (error) {
-        console.error("Error fetching reservations:", error);
         setFetchReservationsError("No se pudieron obtener las reservaciones. Intenta de nuevo.");
       } finally {
         setLoadingReservations(false);
@@ -221,7 +340,6 @@ export default function AdminDashboard() {
     fetchReservations();
   }, []);
 
-  // Obtención de usuarios
   useEffect(() => {
     const fetchUsers = async () => {
       setLoadingUsers(true);
@@ -232,7 +350,6 @@ export default function AdminDashboard() {
         const data = await res.json();
         setUsers(data);
       } catch (error) {
-        console.error("Error fetching users:", error);
         setFetchUsersError("No se pudieron obtener los usuarios. Intenta de nuevo.");
       } finally {
         setLoadingUsers(false);
@@ -241,40 +358,202 @@ export default function AdminDashboard() {
     fetchUsers();
   }, []);
 
-  // Función para abrir modal de edición de vehículo
+  useEffect(() => {
+    const fetchSuscripciones = async () => {
+      setLoadingSuscripciones(true);
+      setFetchSuscripcionesError("");
+      try {
+        const res = await fetch("http://127.0.0.1:8000/api/suscripciones");
+        if (!res.ok) throw new Error("Error al obtener suscripciones");
+        const data = await res.json();
+        setSuscripciones(data);
+      } catch (error) {
+        setFetchSuscripcionesError("No se pudieron obtener las suscripciones. Intenta de nuevo.");
+      } finally {
+        setLoadingSuscripciones(false);
+      }
+    };
+    fetchSuscripciones();
+  }, []);
+
+  // === Funciones para abrir modales ===
   const handleEditVehicle = (idVehiculo: number) => {
     const veh = vehicles.find((v) => v.id_vehiculo === idVehiculo);
     if (veh) {
-      console.log("Vehículo a editar:", veh);
       setVehicleToEdit(veh);
       setEditarVehiOpen(true);
-    } else {
-      console.error("No se encontró el vehículo con id_vehiculo:", idVehiculo);
     }
   };
 
-  // Función para abrir modal de edición de categoría
   const handleEditCategory = (id: number) => {
     const cat = categorias.find((c) => c.id_categoria === id);
     if (cat) {
-      console.log("Categoría a editar:", cat);
       setCategoriaToEdit(cat);
       setEditarCategoOpen(true);
-    } else {
-      console.error("No se encontró la categoría con id:", id);
     }
   };
 
-  // Función para abrir modal de edición de plan
   const handleEditPlan = (idPlan: number) => {
     const planFound = plans.find((p) => p.id_plan === idPlan);
     if (planFound) {
-      console.log("Plan a editar:", planFound);
       setPlanToEdit(planFound);
       setEditarPlanOpen(true);
-    } else {
-      console.error("No se encontró el plan con id:", idPlan);
     }
+  };
+
+  // === Aceptar Reservación (estado pendiente -> activo) ===
+  const acceptReservation = async (reservationId: number) => {
+    try {
+      const payload = { id_estado: 1 };
+      const res = await fetch(`http://127.0.0.1:8000/api/reservaciones/${reservationId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error("Error al actualizar la reservación");
+      }
+      setReservations((prev) =>
+        prev.map((r) =>
+          r.id_reservacion === reservationId
+            ? { ...r, suscripcion: { ...r.suscripcion, id_estado: 1 } }
+            : r
+        )
+      );
+    } catch (error) {
+      console.error("Error en acceptReservation:", error);
+    }
+  };
+
+  // === Cálculos de ganancias ===
+  const totalRevenue = suscripciones.reduce((sum, sub) => {
+    const plan = plans.find((p) => p.id_plan === sub.id_plan);
+    const amount = plan ? parseFloat(plan.precio_mensual) : 0;
+    return sum + amount;
+  }, 0);
+
+  const revenueDaily = getDailyRevenue(suscripciones, "fecha_pago", plans, 7);
+
+  // === Datos de otros gráficos ===
+  const vehiclesDaily = getDailyCounts(vehicles, "fecha_registro", 7);
+  const reservationsDaily = getDailyCounts(reservations, "fecha_registro", 7);
+  const plansDaily = getPlansDailyCounts(plans, 7);
+
+  const vehiclesChartData = {
+    labels: vehiclesDaily.labels,
+    datasets: [
+      {
+        label: "Vehículos",
+        data: vehiclesDaily.counts,
+        borderColor: "rgba(59, 130, 246, 1)",
+        backgroundColor: "rgba(59, 130, 246, 0.2)",
+      },
+    ],
+  };
+
+  const reservationsChartData = {
+    labels: reservationsDaily.labels,
+    datasets: [
+      {
+        label: "Reservaciones",
+        data: reservationsDaily.counts,
+        borderColor: "rgba(239, 68, 68, 1)",
+        backgroundColor: "rgba(239, 68, 68, 0.2)",
+      },
+    ],
+  };
+
+  const plansChartData = {
+    labels: plansDaily.labels,
+    datasets: [
+      {
+        label: "Planes",
+        data: plansDaily.counts,
+        borderColor: "rgba(16, 185, 129, 1)",
+        backgroundColor: "rgba(16, 185, 129, 0.2)",
+      },
+    ],
+  };
+
+  // === Gráfico de Ganancias Diarias ===
+  const revenueChartData = {
+    labels: revenueDaily.labels,
+    datasets: [
+      {
+        label: "Ganancias diarias ($)",
+        data: revenueDaily.revenue,
+        borderColor: "rgba(107, 114, 128, 1)",
+        backgroundColor: "rgba(107, 114, 128, 0.2)",
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: true },
+    },
+    scales: {
+      x: { grid: { display: false } },
+      y: { grid: { display: false }, beginAtZero: true },
+    },
+  };
+
+  /**
+   * GENERAR REPORTE PDF (jspdf + jspdf-autotable)
+   */
+  const generatePDFReport = () => {
+    const doc = new jsPDF();
+
+    // Título principal
+    doc.setFontSize(18);
+    doc.text("Reporte de Ganancias", 14, 20);
+
+    // Subtítulo o resumen
+    doc.setFontSize(12);
+    doc.text(`Ganancias Totales: $${totalRevenue.toFixed(2)}`, 14, 30);
+
+    // Preparamos la data para la tabla
+    const tableColumn = [
+      "ID",
+      "Fecha Inicio",
+      "Fecha Fin",
+      "Fecha Pago",
+      "Usuario",
+      "Estado",
+      "Plan",
+      "Monto",
+    ];
+    const tableRows: string[][] = [];
+
+    suscripciones.forEach((sub) => {
+      const userInfo = users.find((u) => u.id_usuario === sub.id_usuario);
+      const planInfo = plans.find((p) => p.id_plan === sub.id_plan);
+      tableRows.push([
+        sub.id_suscripcion.toString(),
+        sub.fecha_inicio,
+        sub.fecha_fin,
+        sub.fecha_pago,
+        userInfo ? userInfo.nombres : "—",
+        sub.id_estado.toString(),
+        planInfo ? planInfo.nombre_plan : "—",
+        planInfo ? `$${parseFloat(planInfo.precio_mensual).toFixed(2)}` : "—",
+      ]);
+    });
+
+    // Usamos autoTable y le pasamos la instancia de doc
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 40,
+      theme: "grid",
+      headStyles: { fillColor: [59, 130, 246] },
+    });
+
+    // Guardamos el PDF
+    doc.save("Reporte_de_Ganancias.pdf");
   };
 
   return (
@@ -283,36 +562,41 @@ export default function AdminDashboard() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold">Panel de Administración</h1>
-          <p className="text-gray-500">Gestiona todos los aspectos del sistema de renta de carros</p>
+          <p className="text-gray-500">
+            Gestiona todos los aspectos del sistema de renta de carros
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button className="bg-blue-500 hover:bg-blue-600">
+          {/* Botón para generar reporte PDF */}
+          <Button className="bg-blue-500 hover:bg-blue-600" onClick={generatePDFReport}>
             <FileText className="h-4 w-4 mr-2" /> Generar Reporte
           </Button>
         </div>
       </div>
 
-      {/* Tarjetas de estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6 mb-8">
-        {/* Tarjeta de Vehículos Totales */}
+      {/* Tarjetas de estadísticas con gráficos diarios */}
+      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 gap-6 mb-8">
+        {/* Vehículos Totales */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">Vehículos Totales</p>
+                <p className="text-sm font-medium text-gray-500">
+                  Vehículos Totales
+                </p>
                 <h3 className="text-2xl font-bold mt-1">{vehicles.length}</h3>
               </div>
               <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
                 <Car className="h-6 w-6 text-blue-500" />
               </div>
             </div>
-            <div className="mt-4 text-sm text-green-500 flex items-center">
-              <span>↑ 12% desde el mes pasado</span>
+            <div className="mt-4" style={{ height: "150px" }}>
+              <Line data={vehiclesChartData} options={chartOptions} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Tarjeta de Planes Totales */}
+        {/* Planes Totales */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -324,26 +608,46 @@ export default function AdminDashboard() {
                 <CreditCard className="h-6 w-6 text-green-500" />
               </div>
             </div>
-            <div className="mt-4 text-sm text-green-500 flex items-center">
-              <span>Actualizado recientemente</span>
+            <div className="mt-4" style={{ height: "150px" }}>
+              <Line data={plansChartData} options={chartOptions} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Tarjeta de Reservaciones Totales */}
+        {/* Reservaciones Totales */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">Reservaciones Totales</p>
+                <p className="text-sm font-medium text-gray-500">
+                  Reservaciones Totales
+                </p>
                 <h3 className="text-2xl font-bold mt-1">{reservations.length}</h3>
               </div>
               <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
                 <ShoppingCart className="h-6 w-6 text-red-500" />
               </div>
             </div>
-            <div className="mt-4 text-sm text-green-500 flex items-center">
-              <span>Actualizado recientemente</span>
+            <div className="mt-4" style={{ height: "150px" }}>
+              <Line data={reservationsChartData} options={chartOptions} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Ganancias Totales */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Ganancias Totales</p>
+                <h3 className="text-2xl font-bold mt-1">${totalRevenue.toFixed(2)}</h3>
+              </div>
+              <div className="h-12 w-12 bg-gray-100 rounded-full flex items-center justify-center">
+                <CreditCard className="h-6 w-6 text-gray-500" />
+              </div>
+            </div>
+            <div className="mt-4" style={{ height: "150px" }}>
+              <Line data={revenueChartData} options={chartOptions} />
             </div>
           </CardContent>
         </Card>
@@ -351,12 +655,13 @@ export default function AdminDashboard() {
 
       {/* Tabs de administración */}
       <Tabs defaultValue="vehicles" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-8">
+        <TabsList className="grid w-full grid-cols-6 mb-8">
           <TabsTrigger value="vehicles">Vehículos</TabsTrigger>
           <TabsTrigger value="users">Usuarios</TabsTrigger>
           <TabsTrigger value="reservations">Reservaciones</TabsTrigger>
           <TabsTrigger value="plans">Planes</TabsTrigger>
           <TabsTrigger value="categorias">Categorías</TabsTrigger>
+          <TabsTrigger value="suscripciones">Suscripciones</TabsTrigger>
         </TabsList>
 
         {/* Pestaña Vehículos */}
@@ -366,7 +671,9 @@ export default function AdminDashboard() {
               <div className="flex justify-between items-center">
                 <div>
                   <CardTitle>Gestión de Vehículos</CardTitle>
-                  <CardDescription>Administra el inventario de vehículos disponibles</CardDescription>
+                  <CardDescription>
+                    Administra el inventario de vehículos disponibles
+                  </CardDescription>
                 </div>
                 <Button onClick={() => setModalOpen(true)} className="bg-blue-500 hover:bg-blue-600">
                   <Car className="h-4 w-4 mr-2" /> Agregar Vehículo
@@ -412,12 +719,20 @@ export default function AdminDashboard() {
                         <td className="py-2 px-4">{vehicle.marca}</td>
                         <td className="py-2 px-4">{vehicle.modelo}</td>
                         <td className="py-2 px-4">{vehicle.anio}</td>
-                        <td className="py-2 px-4">{new Date(vehicle.fecha_registro).toLocaleDateString()}</td>
+                        <td className="py-2 px-4">
+                          {new Date(vehicle.fecha_registro).toLocaleDateString()}
+                        </td>
                         <td className="py-2 px-4">{vehicle.placa}</td>
                         <td className="py-2 px-4">{vehicle.estado?.descripcion || "-"}</td>
-                        <td className="py-2 px-4">{vehicle.categoria?.nombre_categoria || "-"}</td>
                         <td className="py-2 px-4">
-                          <Button variant="outline" size="sm" onClick={() => handleEditVehicle(vehicle.id_vehiculo)}>
+                          {vehicle.categoria?.nombre_categoria || "-"}
+                        </td>
+                        <td className="py-2 px-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditVehicle(vehicle.id_vehiculo)}
+                          >
                             Editar
                           </Button>
                         </td>
@@ -437,7 +752,9 @@ export default function AdminDashboard() {
               <div className="flex justify-between items-center">
                 <div>
                   <CardTitle>Gestión de Usuarios</CardTitle>
-                  <CardDescription>Muestra nombre, email, teléfono, DUI, fecha de registro y rol</CardDescription>
+                  <CardDescription>
+                    Muestra nombre, email, teléfono, DUI, fecha de registro y rol
+                  </CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -467,7 +784,9 @@ export default function AdminDashboard() {
                         <td className="py-2 px-4">{user.email}</td>
                         <td className="py-2 px-4">{user.telefono}</td>
                         <td className="py-2 px-4">{user.dui}</td>
-                        <td className="py-2 px-4">{new Date(user.fecha_registro).toLocaleDateString()}</td>
+                        <td className="py-2 px-4">
+                          {new Date(user.fecha_registro).toLocaleDateString()}
+                        </td>
                         <td className="py-2 px-4">{user.rol?.nombre_rol || "-"}</td>
                       </tr>
                     ))}
@@ -487,7 +806,6 @@ export default function AdminDashboard() {
                   <CardTitle>Gestión de Reservaciones</CardTitle>
                   <CardDescription>Muestra la información de las reservaciones</CardDescription>
                 </div>
-                {/* Sin botón de agregar reservaciones */}
               </div>
             </CardHeader>
             <CardContent>
@@ -505,29 +823,49 @@ export default function AdminDashboard() {
                       <th className="text-left py-2 px-4">Fecha Desde</th>
                       <th className="text-left py-2 px-4">Fecha Hasta</th>
                       <th className="text-left py-2 px-4">Fecha Registro</th>
-                      <th className="text-left py-2 px-4">ID Suscripción</th>
+                      <th className="text-left py-2 px-4">Cliente</th>
                       <th className="text-left py-2 px-4">Fecha Pago</th>
                       <th className="text-left py-2 px-4">Marca</th>
                       <th className="text-left py-2 px-4">Modelo</th>
                       <th className="text-left py-2 px-4">Año</th>
                       <th className="text-left py-2 px-4">Placa</th>
+                      <th className="text-left py-2 px-4">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {reservations.map((resv) => (
-                      <tr key={resv.id_reservacion} className="border-b hover:bg-gray-50">
-                        <td className="py-2 px-4">{resv.id_reservacion}</td>
-                        <td className="py-2 px-4">{resv.fecha_desde}</td>
-                        <td className="py-2 px-4">{resv.fecha_hasta}</td>
-                        <td className="py-2 px-4">{new Date(resv.fecha_registro).toLocaleString()}</td>
-                        <td className="py-2 px-4">{resv.id_suscripcion}</td>
-                        <td className="py-2 px-4">{resv.suscripcion?.fecha_pago}</td>
-                        <td className="py-2 px-4">{resv.vehiculo?.marca}</td>
-                        <td className="py-2 px-4">{resv.vehiculo?.modelo}</td>
-                        <td className="py-2 px-4">{resv.vehiculo?.anio}</td>
-                        <td className="py-2 px-4">{resv.vehiculo?.placa}</td>
-                      </tr>
-                    ))}
+                    {reservations.map((resv) => {
+                      const userId = resv.suscripcion?.id_usuario;
+                      const userInfo = users.find((u) => u.id_usuario === userId);
+                      return (
+                        <tr key={resv.id_reservacion} className="border-b hover:bg-gray-50">
+                          <td className="py-2 px-4">{resv.id_reservacion}</td>
+                          <td className="py-2 px-4">{resv.fecha_desde}</td>
+                          <td className="py-2 px-4">{resv.fecha_hasta}</td>
+                          <td className="py-2 px-4">
+                            {new Date(resv.fecha_registro).toLocaleString()}
+                          </td>
+                          <td className="py-2 px-4">
+                            {userInfo ? userInfo.nombres : ""}
+                          </td>
+                          <td className="py-2 px-4">{resv.suscripcion?.fecha_pago}</td>
+                          <td className="py-2 px-4">{resv.vehiculo?.marca}</td>
+                          <td className="py-2 px-4">{resv.vehiculo?.modelo}</td>
+                          <td className="py-2 px-4">{resv.vehiculo?.anio}</td>
+                          <td className="py-2 px-4">{resv.vehiculo?.placa}</td>
+                          <td className="py-2 px-4">
+                            {resv.suscripcion?.id_estado === 2 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => acceptReservation(resv.id_reservacion)}
+                              >
+                                Aceptar
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -542,10 +880,15 @@ export default function AdminDashboard() {
               <div className="flex justify-between items-center">
                 <div>
                   <CardTitle>Gestión de Planes</CardTitle>
-                  <CardDescription>Administra los planes de suscripción disponibles</CardDescription>
+                  <CardDescription>
+                    Administra los planes de suscripción disponibles
+                  </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => setModalPlanOpen(true)} className="bg-blue-500 hover:bg-blue-600">
+                  <Button
+                    onClick={() => setModalPlanOpen(true)}
+                    className="bg-blue-500 hover:bg-blue-600"
+                  >
                     <CreditCard className="h-4 w-4 mr-2" /> Nuevo Plan
                   </Button>
                 </div>
@@ -577,9 +920,15 @@ export default function AdminDashboard() {
                         <td className="py-2 px-4">{plan.descripcion}</td>
                         <td className="py-2 px-4">${parseFloat(plan.precio_mensual).toFixed(2)}</td>
                         <td className="py-2 px-4">{plan.limite_km} km</td>
-                        <td className="py-2 px-4">{plan.categoria?.nombre_categoria || "Sin categoría"}</td>
                         <td className="py-2 px-4">
-                          <Button variant="outline" size="sm" onClick={() => handleEditPlan(plan.id_plan)}>
+                          {plan.categoria?.nombre_categoria || "Sin categoría"}
+                        </td>
+                        <td className="py-2 px-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditPlan(plan.id_plan)}
+                          >
                             Editar
                           </Button>
                         </td>
@@ -602,7 +951,10 @@ export default function AdminDashboard() {
                   <CardDescription>Administra las categorías disponibles</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => setModalCategoOpen(true)} className="bg-blue-500 hover:bg-blue-600">
+                  <Button
+                    onClick={() => setModalCategoOpen(true)}
+                    className="bg-blue-500 hover:bg-blue-600"
+                  >
                     <CreditCard className="h-4 w-4 mr-2" /> Agregar Categoría
                   </Button>
                 </div>
@@ -632,7 +984,11 @@ export default function AdminDashboard() {
                         <td className="py-2 px-4">{cat.nombre_categoria}</td>
                         <td className="py-2 px-4">{cat.descripcion}</td>
                         <td className="py-2 px-4">
-                          <Button variant="outline" size="sm" onClick={() => handleEditCategory(cat.id_categoria)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditCategory(cat.id_categoria)}
+                          >
                             Editar
                           </Button>
                         </td>
@@ -644,24 +1000,86 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Pestaña Suscripciones */}
+        <TabsContent value="suscripciones">
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Gestión de Suscripciones</CardTitle>
+                <CardDescription>
+                  Muestra la información de las suscripciones
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingSuscripciones ? (
+                <div>Cargando suscripciones...</div>
+              ) : fetchSuscripcionesError ? (
+                <div className="text-red-500">{fetchSuscripcionesError}</div>
+              ) : suscripciones.length === 0 ? (
+                <div>No se encontraron suscripciones.</div>
+              ) : (
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-4">ID</th>
+                      <th className="text-left py-2 px-4">Fecha Inicio</th>
+                      <th className="text-left py-2 px-4">Fecha Fin</th>
+                      <th className="text-left py-2 px-4">Fecha Pago</th>
+                      <th className="text-left py-2 px-4">Usuario</th>
+                      <th className="text-left py-2 px-4">Estado</th>
+                      <th className="text-left py-2 px-4">Plan</th>
+                      <th className="text-left py-2 px-4">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suscripciones.map((sub) => {
+                      const userInfo = users.find((u) => u.id_usuario === sub.id_usuario);
+                      const planInfo = plans.find((p) => p.id_plan === sub.id_plan);
+                      return (
+                        <tr key={sub.id_suscripcion} className="border-b hover:bg-gray-50">
+                          <td className="py-2 px-4">{sub.id_suscripcion}</td>
+                          <td className="py-2 px-4">{sub.fecha_inicio}</td>
+                          <td className="py-2 px-4">{sub.fecha_fin}</td>
+                          <td className="py-2 px-4">{sub.fecha_pago}</td>
+                          <td className="py-2 px-4">{userInfo ? userInfo.nombres : "—"}</td>
+                          <td className="py-2 px-4">{sub.id_estado}</td>
+                          <td className="py-2 px-4">{planInfo ? planInfo.nombre_plan : "—"}</td>
+                          <td className="py-2 px-4">
+                            {planInfo
+                              ? `$${parseFloat(planInfo.precio_mensual).toFixed(2)}`
+                              : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Modales */}
-      {/* Modal para Agregar Vehículo */}
       <AgregarVehi open={modalOpen} onClose={() => setModalOpen(false)} />
-      {/* Modal para Agregar Categoría */}
       <AgregarCatego open={modalCategoOpen} onClose={() => setModalCategoOpen(false)} />
-      {/* Modal para Agregar Plan */}
       <AgregarPlan open={modalPlanOpen} onClose={() => setModalPlanOpen(false)} categories={categorias} />
-      {/* Modal para Editar Vehículo */}
       {vehicleToEdit && (
-        <EditarVehi open={editarVehiOpen} onClose={() => setEditarVehiOpen(false)} vehicle={vehicleToEdit} />
+        <EditarVehi
+          open={editarVehiOpen}
+          onClose={() => setEditarVehiOpen(false)}
+          vehicle={vehicleToEdit}
+        />
       )}
-      {/* Modal para Editar Categoría */}
       {categoriaToEdit && (
-        <EditarCatego open={editarCategoOpen} onClose={() => setEditarCategoOpen(false)} categoria={categoriaToEdit} />
+        <EditarCatego
+          open={editarCategoOpen}
+          onClose={() => setEditarCategoOpen(false)}
+          categoria={categoriaToEdit}
+        />
       )}
-      {/* Modal para Editar Plan */}
       {planToEdit && (
         <EditarPlan
           open={editarPlanOpen}

@@ -76,10 +76,6 @@ export default function Navbar() {
                   <LayoutDashboard className="h-4 w-4" />
                   <span>Dashboard</span>
                 </Link>
-                <Link href="/categories" className="text-gray-600 hover:text-blue-500 flex items-center gap-1">
-                  <Category className="h-4 w-4" />
-                  <span>Categorías</span>
-                </Link>
                 <Link href="/plans" className="text-gray-600 hover:text-blue-500 flex items-center gap-1">
                   <CreditCard className="h-4 w-4" />
                   <span>Planes</span>
