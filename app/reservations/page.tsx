@@ -84,10 +84,9 @@ export default function ReservationsPage() {
       <h1 className="text-3xl font-bold mb-6">Mis Reservaciones</h1>
 
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8">
+        <TabsList className="grid w-full grid-cols-2 mb-8">
           <TabsTrigger value="active">Activas</TabsTrigger>
           <TabsTrigger value="history">Historial</TabsTrigger>
-          <TabsTrigger value="calendar">Calendario</TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="space-y-4">
@@ -199,16 +198,7 @@ export default function ReservationsPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="calendar">
-          <Card>
-            <CardHeader>
-              <CardTitle>Calendario de Reservaciones</CardTitle>
-            </CardHeader>
-            <CardContent className="flex justify-center">
-              <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border" />
-            </CardContent>
-          </Card>
-        </TabsContent>
+       
       </Tabs>
     </div>
   )
