@@ -40,7 +40,9 @@ export default function DashboardPage() {
   // Al montar, obtenemos el token del sessionStorage
   useEffect(() => {
     const storedToken = sessionStorage.getItem("auth_token");
+    const usuario = Number(sessionStorage.getItem("auth_user_name"));
     setToken(storedToken);
+    setUserName(usuario);
   }, []);
 
   // Cada vez que cambie el token se obtienen los datos del usuario, reservas y planes
@@ -50,7 +52,7 @@ export default function DashboardPage() {
     async function fetchData() {
       try {
         // 1. Obtener información del usuario
-        const userResponse = await fetch("http://localhost:8000/api/usuarios", {
+        const userResponse = await fetch(`http://localhost:8000/api/usuarios`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -59,9 +61,6 @@ export default function DashboardPage() {
         });
         if (userResponse.ok) {
           const users = await userResponse.json();
-          if (Array.isArray(users) && users.length > 0) {
-            setUserName(users[0].nombres);
-          }
         } else {
           console.error("Error al obtener el usuario:", userResponse.status);
         }
