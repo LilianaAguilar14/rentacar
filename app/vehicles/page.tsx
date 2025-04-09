@@ -90,6 +90,12 @@ export default function VehiclesPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
+                  {/* Imagen del vehículo */}
+                  <img
+                    src={vehicle.url} 
+                    alt={`${vehicle.marca} ${vehicle.modelo}`}
+                    className="w-full h-48 object-cover rounded-md"
+                  />
                   <p className="text-sm text-gray-500">Año: {vehicle.anio}</p>
                   <p className="text-sm text-gray-500">Categoría: {vehicle.categoria.nombre_categoria}</p>
                 </div>
