@@ -40,7 +40,7 @@ export default function DashboardPage() {
   // Al montar, obtenemos el token del sessionStorage
   useEffect(() => {
     const storedToken = sessionStorage.getItem("auth_token");
-    const usuario = Number(sessionStorage.getItem("auth_user_name"));
+    const usuario = sessionStorage.getItem("auth_user_name");
     setToken(storedToken);
     setUserName(usuario);
   }, []);
