@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, useState } from "react";
+import React, { FormEvent, useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,26 @@ interface AgregarVehiProps {
 
 export default function AgregarVehi({ open, onClose }: AgregarVehiProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [categories, setCategories] = useState([]); // Estado para las categorías
+  const [selectedCategory, setSelectedCategory] = useState(""); // Categoría seleccionada
+
+  useEffect(() => {
+    // Fetch para obtener las categorías desde la API
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/categorias");
+        if (!res.ok) {
+          throw new Error("Error al obtener las categorías");
+        }
+        const data = await res.json();
+        setCategories(data);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -30,7 +50,7 @@ export default function AgregarVehi({ open, onClose }: AgregarVehiProps) {
     const placa = (form.elements.namedItem("placa") as HTMLInputElement).value;
 
     // Validación de campos vacíos.
-    if (!marca.trim() || !modelo.trim() || !anio.trim() || !placa.trim()) {
+    if (!marca.trim() || !modelo.trim() || !anio.trim() || !placa.trim() || !selectedCategory) {
       alert("Por favor, llena todos los campos correctamente.");
       setIsLoading(false);
       return;
@@ -43,7 +63,7 @@ export default function AgregarVehi({ open, onClose }: AgregarVehiProps) {
       setIsLoading(false);
       return;
     }
-    
+
     // Validar que la placa tenga al menos 6 dígitos.
     if (placa.trim().length < 6) {
       alert("La placa debe tener al menos 6 dígitos.");
@@ -58,7 +78,7 @@ export default function AgregarVehi({ open, onClose }: AgregarVehiProps) {
       anio,
       placa,
       id_estado: 1,
-      id_categoria: 1,
+      id_categoria: selectedCategory, // Usamos la categoría seleccionada
     };
 
     try {
@@ -68,7 +88,6 @@ export default function AgregarVehi({ open, onClose }: AgregarVehiProps) {
         body: JSON.stringify(payload),
       });
 
-      // Intentamos parsear la respuesta para obtener un mensaje de error en caso de ocurrir.
       let data: any = null;
       try {
         data = await response.json();
@@ -155,6 +174,28 @@ export default function AgregarVehi({ open, onClose }: AgregarVehiProps) {
               className="w-full border border-gray-300 rounded-md p-2 mt-1"
               required
             />
+          </div>
+          <div>
+            <label htmlFor="categoria" className="block text-sm font-medium text-gray-700">
+              Categoría
+            </label>
+            <select
+              id="categoria"
+              name="categoria"
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full border border-gray-300 rounded-md p-2 mt-1"
+              required
+            >
+              <option value="" disabled>
+                Selecciona una categoría
+              </option>
+              {categories.map((category: any) => (
+                <option key={category.id_categoria} value={category.id_categoria}>
+                  {category.nombre_categoria}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={onClose} disabled={isLoading}>
